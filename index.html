@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Autour de Calle La Chimba – Santa Ana (CR)</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <style>
+    :root{
+      --brand:#0ea5e9; /* cyan-500 */
+      --bg:#0b1220;    /* nuit profonde */
+      --panel:#0f172a; /* slate-900 */
+      --muted:#94a3b8; /* slate-400 */
+      --chip:#1e293b;  /* slate-800 */
+      --ok:#22c55e;    /* green-500 */
+      --warn:#f59e0b;  /* amber-500 */
+    }
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#020617 0%,#0b1220 70%);color:#e2e8f0;font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+    .wrap{display:grid;grid-template-columns:360px 1fr; gap:14px; height:100%; padding:14px}
+    #map{height:100%;border-radius:18px;box-shadow:0 10px 30px rgba(0,0,0,.35);outline:1px solid rgba(148,163,184,.15)}
+    .panel{background:var(--panel);border-radius:18px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    header{padding:18px 18px 6px 18px;border-bottom:1px solid rgba(148,163,184,.12)}
+    h1{font-size:20px;margin:0}
+    .addr{font-size:12px;color:var(--muted);margin-top:6px}
+    .chips{display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px}
+    .chip{background:var(--chip);border:1px solid rgba(148,163,184,.15);border-radius:999px;padding:8px 12px;cursor:pointer;user-select:none;font-size:12px;display:flex;align-items:center;gap:8px}
+    .chip input{display:none}
+    .chip.active{outline:2px solid var(--brand)}
+    .legend{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:0 16px 8px 16px}
+    .legend div{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
+    .dot{width:10px;height:10px;border-radius:50%}
+    .list{overflow:auto;padding:8px 12px 14px 12px}
+    .card{background:#0b1220;border:1px solid rgba(148,163,184,.15);border-radius:14px;padding:12px;margin:8px 4px;display:grid;grid-template-columns:1fr auto;gap:8px}
+    .card h3{margin:0;font-size:15px}
+    .pill{font-size:11px;color:#fff;padding:3px 8px;border-radius:999px;align-self:start}
+    .meta{font-size:12px;color:var(--muted)}
+    .cta{display:flex;gap:8px;margin-top:6px}
+    .btn{border:1px solid rgba(148,163,184,.2);background:transparent;color:#e2e8f0;border-radius:10px;padding:6px 10px;font-size:12px;text-decoration:none}
+    .btn:hover{border-color:var(--brand);color:#fff}
+    .footer{padding:8px 16px 14px 16px;border-top:1px solid rgba(148,163,184,.12);font-size:11px;color:var(--muted)}
+    @media (max-width:980px){.wrap{grid-template-columns:1fr;grid-template-rows:420px 1fr}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <aside class="panel">
+    <header>
+      <h1>Autour de Calle La Chimba</h1>
+      <div class="addr">Santa Ana, San José – Costa Rica</div>
+      <div class="addr" id="property-addr"></div>
+    </header>
+
+    <div class="chips" id="filters"></div>
+
+    <div class="legend">
+      <div><span class="dot" style="background:#ef4444"></span>Loisirs</div>
+      <div><span class="dot" style="background:#22c55e"></span>Commerces</div>
+      <div><span class="dot" style="background:#a855f7"></span>Santé</div>
+      <div><span class="dot" style="background:#f59e0b"></span>Transports</div>
+      <div><span class="dot" style="background:#3b82f6"></span>Écoles</div>
+    </div>
+
+    <div class="list" id="poi-list"></div>
+    <div class="footer">Cliquez un tag pour filtrer. Les distances sont calculées à vol d'oiseau depuis la maison.</div>
+  </aside>
+  <div id="map"></div>
+</div>
+
+<script>
+  // --- Données ---
+  const property = {
+    name: "Maison – Calle La Chimba",
+    address: "Calle La Chimba, Uruca / Río Oro, Santa Ana",
+    lat: 9.9251, lng: -84.1989
+  };
+
+  const categories = {
+    loisirs: { label: "Loisirs", color: "#ef4444" },
+    commerces: { label: "Commerces", color: "#22c55e" },
+    sante: { label: "Santé", color: "#a855f7" },
+    transports: { label: "Transports", color: "#f59e0b" },
+    ecoles: { label: "Écoles privées", color: "#3b82f6" }
+  };
+
+  const pois = [
+    // --- Loisirs / Tourisme ---
+    { name: "Hacienda La Chimba (café, canopy, sentiers)", cat: "loisirs", lat: 9.9167, lng: -84.2000, url: "https://lachimbacr.com/", desc: "Plantation de café, Mantra Trail, tyroliennes, restaurants." },
+
+    // --- Commerces (grandes surfaces & centres) ---
+    { name: "PriceSmart Santa Ana", cat: "commerces", lat: 9.938507, lng: -84.200424, url: "https://www.pricesmart.com/", desc: "Hypermarché type Costco (adhésion)." },
+    { name: "Auto Mercado – Río Oro", cat: "commerces", lat: 9.9382991, lng: -84.1988922, url: "https://automercado.cr/", desc: "Supermarché premium de quartier." },
+    { name: "Walmart Escazú", cat: "commerces", lat: 9.93496, lng: -84.12921, url: "https://www.walmart.co.cr/", desc: "Grande surface à 10–15 min env." },
+    { name: "Momentum Lindora (lifestyle center)", cat: "commerces", lat: 9.953333, lng: -84.195278, url: "https://www.momentumlindora.com/", desc: "Restos, commerces, ofiplaza." },
+    { name: "Terrazas Lindora (centre commercial)", cat: "commerces", lat: 9.95722, lng: -84.19662, url: "https://www.terrazaslindora.com/", desc: "Restaurants & services." },
+    { name: "Multiplaza Escazú (grand mall)", cat: "commerces", lat: 9.94433, lng: -84.15049, url: "https://www.multiplaza.com/", desc: "Le plus grand mall de l’ouest." },
+
+    // --- Santé ---
+    { name: "Hospital CIMA San José (Escazú)", cat: "sante", lat: 9.939643, lng: -84.144329, url: "https://hospitalcima.com/", desc: "Hôpital privé reconnu (JCI)." },
+    { name: "Hospital Metropolitano – Lindora", cat: "sante", lat: 9.9534, lng: -84.19041, url: "https://metropolitanocr.com/", desc: "Urgences & spécialités." },
+
+    // --- Écoles privées (sélection proche) ---
+    { name: "UWC Costa Rica (United World College)", cat: "ecoles", lat: 9.94727, lng: -84.19604, url: "https://www.uwccostarica.cr/", desc: "Lycée international (IB)." },
+
+    // --- Accès / Transport ---
+    { name: "Entrée Ruta 27 – Próspero Fernández (Santa Ana)", cat: "transports", lat: 9.93719, lng: -84.22011, url: "https://globalviaruta27.com/", desc: "Accès rapide San José & plages Pacifique." }
+  ];
+
+  // --- Carte ---
+  const map = L.map('map', { zoomControl: false });
+  const tiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+  // Marqueur propriété
+  const homeIcon = L.divIcon({ className:'', html:`<div style="background:var(--brand);width:18px;height:18px;border:2px solid white;border-radius:50%;box-shadow:0 2px 10px rgba(0,0,0,.4)"></div>`});
+  const homeMarker = L.marker([property.lat, property.lng], { icon: homeIcon }).addTo(map)
+    .bindPopup(`<b>${property.name}</b><br>${property.address}`);
+
+  // Cluster + icônes par catégorie
+  const cluster = L.markerClusterGroup({ showCoverageOnHover:false, maxClusterRadius:44 });
+  const catIcons = Object.fromEntries(Object.entries(categories).map(([k,v])=>{
+    const svg = encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28'><circle cx='14' cy='14' r='10' fill='${v.color}' stroke='white' stroke-width='3'/></svg>`);
+    return [k, L.icon({ iconUrl:`data:image/svg+xml,${svg}`, iconSize:[28,28], iconAnchor:[14,14]})];
+  }));
+
+  const km = d=> (d/1000).toFixed(1).replace('.',',');
+  const toRad = deg => deg*Math.PI/180;
+  function haversine(a,b){
+    const R=6371000; const dLat=toRad(b.lat-a.lat), dLng=toRad(b.lng-a.lng);
+    const s=Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)**2;
+    return 2*R*Math.asin(Math.sqrt(s));
+  }
+
+  // Construire les marqueurs
+  const markers = pois.map(p=>{
+    const m = L.marker([p.lat,p.lng], { icon: catIcons[p.cat] })
+      .bindPopup(`<b>${p.name}</b><br>${p.desc || ''}<br><a href='${p.url}' target='_blank' rel='noopener'>En savoir plus</a>`);
+    m._data = p; // attacher pour filtrage
+    return m;
+  });
+  markers.forEach(m=>cluster.addLayer(m));
+  cluster.addTo(map);
+
+  // Ajuster la vue
+  const group = L.featureGroup([homeMarker, ...markers]);
+  map.fitBounds(group.getBounds().pad(0.2));
+
+  // Filtres
+  const activeCats = new Set(Object.keys(categories));
+  const filters = document.getElementById('filters');
+  Object.entries(categories).forEach(([key, meta])=>{
+    const chip = document.createElement('label');
+    chip.className = 'chip active';
+    chip.innerHTML = `<input type="checkbox" checked data-key="${key}"><span class="dot" style="background:${meta.color}"></span>${meta.label}`;
+    chip.onclick = (e)=>{
+      const cb = chip.querySelector('input');
+      cb.checked = !cb.checked; // toggle
+      chip.classList.toggle('active', cb.checked);
+      if(cb.checked) activeCats.add(key); else activeCats.delete(key);
+      applyFilters();
+    };
+    filters.appendChild(chip);
+  });
+
+  // Liste
+  const list = document.getElementById('poi-list');
+  function renderList(){
+    const items = markers
+      .filter(m=>activeCats.has(m._data.cat))
+      .map(m=>{
+        const d = haversine({lat:property.lat,lng:property.lng},{lat:m._data.lat,lng:m._data.lng});
+        return { marker:m, dist:d };
+      })
+      .sort((a,b)=>a.dist-b.dist);
+
+    list.innerHTML = items.map(({marker,dist})=>{
+      const p = marker._data; const cat = categories[p.cat];
+      const dtxt = km(dist) + ' km';
+      const waze = `https://waze.com/ul?ll=${p.lat}%2C${p.lng}&navigate=yes`;
+      const gmaps = `https://www.google.com/maps?q=${p.lat},${p.lng}`;
+      return `<div class='card'>
+        <div>
+          <h3>${p.name}</h3>
+          <div class='meta'>${p.desc || ''}</div>
+          <div class='meta'>Distance : ${dtxt}</div>
+          <div class='cta'>
+            <a class='btn' href='${waze}' target='_blank' rel='noopener'>Waze</a>
+            <a class='btn' href='${gmaps}' target='_blank' rel='noopener'>Google Maps</a>
+            ${p.url ? `<a class='btn' href='${p.url}' target='_blank' rel='noopener'>Site</a>` : ''}
+          </div>
+        </div>
+        <span class='pill' style='background:${cat.color}'>${cat.label}</span>
+      </div>`;
+    }).join('');
+  }
+
+  function applyFilters(){
+    cluster.clearLayers();
+    markers.forEach(m=>{ if(activeCats.has(m._data.cat)) cluster.addLayer(m); });
+    renderList();
+  }
+
+  document.getElementById('property-addr').textContent = property.name + ' · ' + property.address;
+  renderList();
+</script>
+</body>
+</html>
